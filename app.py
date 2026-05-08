@@ -300,4 +300,8 @@ selected_project = st.sidebar.radio(
 st.sidebar.divider()
 st.sidebar.info("본 대시보드는 SIMPAC의 비즈니스 구조를 모티브로 제작된 가상 데이터 기반 포트폴리오입니다.")
 
-#
+# 선택된 메뉴에 따라 함수 실행
+if selected_project == "1. 내부통제 및 이상치 탐지 (증빙 대사)":
+    run_project1()
+elif selected_project == "2. 제조원가 검증 및 결산 보조":
+    run_project2()
