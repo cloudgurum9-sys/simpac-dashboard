@@ -14,7 +14,7 @@ st.set_page_config(
 )
 
 # ==============================================================================
-# [프로젝트 1] 내부통제 및 이상치 탐지 로직 (수정 없이 함수로 래핑)
+# [프로젝트 1] 내부통제 및 이상치 탐지 로직
 # ==============================================================================
 def run_project1():
     st.title("⚙️ SIMPAC 회계팀 지출증빙 및 내부통제 자동 검증 시스템")
@@ -23,7 +23,6 @@ def run_project1():
     사내 ERP(지출결의) 데이터와 카드사 실승인 데이터를 대사(Reconciliation)하여 **미증빙, 금액 불일치, 내부규정 위반 결제**를 자동으로 탐지합니다.
     """)
 
-    # --- 2. 가상 데이터 생성 함수 (캐싱 적용) ---
     @st.cache_data
     def generate_simpac_data():
         np.random.seed(42)
@@ -32,7 +31,7 @@ def run_project1():
         bu_list = ['프레스 BU', '메탈 BU', 'ENG BU', '산업기계 BU', '리스텍비즈 BU']
         merchant_list = ['사무용품(알파)', '일반식당', '주유소', '골프장(규정위반)', '유흥주점(규정위반)', '상품권(규정위반)', 'KT(통신비)', '항공권']
         
-        # 1) 사내 ERP 지출결의 데이터
+        # 1) ERP 지출결의 데이터
         erp_data = pd.DataFrame({
             '결의번호': [f'ERP-{2025000+i}' for i in range(n_rows)],
             '사업부': np.random.choice(bu_list, n_rows),
@@ -42,22 +41,18 @@ def run_project1():
             'ERP청구액': np.random.randint(1, 100, n_rows) * 10000
         })
         
-        # 2) 카드사 실제 승인 데이터 (약간의 오류 주입)
+        # 2) 카드사 실제 승인 데이터
         card_data = erp_data.copy()
-        
-        # [오류1] 미증빙: 카드 내역 누락 (10건)
-        drop_indices = np.random.choice(card_data.index, 10, replace=False)
+        drop_indices = np.random.choice(card_data.index, 10, replace=False) # 미증빙
         card_data = card_data.drop(drop_indices)
         
-        # [오류2] 금액 불일치: 실제 긁은 금액이 다름 (15건)
-        mismatch_indices = np.random.choice(card_data.index, 15, replace=False)
+        mismatch_indices = np.random.choice(card_data.index, 15, replace=False) # 금액불일치
         card_data.loc[mismatch_indices, 'ERP청구액'] = card_data.loc[mismatch_indices, 'ERP청구액'] + 5000 
         card_data.rename(columns={'ERP청구액': '카드승인액'}, inplace=True)
         
-        # 3) 데이터 병합 (Left Join)
+        # 3) 데이터 병합
         merged_df = pd.merge(erp_data, card_data[['결의번호', '카드승인액']], on='결의번호', how='left')
         
-        # --- 3. 이상치 탐지 로직 (내부통제 룰) ---
         merged_df['이상치_유형'] = '정상'
         merged_df['위험도'] = 0
         
@@ -65,21 +60,17 @@ def run_project1():
             anomalies = []
             risk = 0
             
-            # 1. 미증빙 (카드 승인 내역 없음)
             if pd.isna(row['카드승인액']):
                 anomalies.append('미증빙(누락)')
                 risk += 3
-            # 2. 금액 불일치
             elif row['ERP청구액'] != row['카드승인액']:
                 anomalies.append('금액 불일치')
                 risk += 2
             
-            # 3. 규정 위반 거래처
             if '위반' in row['거래처']:
                 anomalies.append('의심 거래처')
                 risk += 5
                 
-            # 4. 주말 무단 사용
             if row['사용일자'].weekday() >= 5:
                 anomalies.append('주말 사용')
                 risk += 4
@@ -90,22 +81,17 @@ def run_project1():
                 return pd.Series([', '.join(anomalies), risk])
                 
         merged_df[['이상치_유형', '위험도']] = merged_df.apply(detect_anomaly, axis=1)
-        
-        # 위험도 순으로 정렬
         merged_df = merged_df.sort_values(by='위험도', ascending=False).reset_index(drop=True)
         return merged_df
 
-    # 데이터 로드
     df = generate_simpac_data()
     
-    # --- 4. 검색 필터 (프로젝트 내장) ---
     st.markdown("### 🔍 검색 필터")
     selected_bu = st.multiselect("[내부통제] 사업부(BU) 선택", options=df['사업부'].unique(), default=df['사업부'].unique())
 
     filtered_df = df[df['사업부'].isin(selected_bu)]
     filtered_anomalies = filtered_df[filtered_df['이상치_유형'] != '정상']
 
-    # --- 5. 핵심 지표 (KPI) 영역 ---
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("총 지출결의 검토 건수", f"{len(filtered_df):,}건")
@@ -120,9 +106,7 @@ def run_project1():
 
     st.divider()
 
-    # --- 6. 데이터 시각화 (Plotly) ---
     col_chart1, col_chart2 = st.columns(2)
-
     with col_chart1:
         st.subheader("🏢 사업부별 내부통제 위반 건수")
         bu_risk_counts = filtered_anomalies['사업부'].value_counts().reset_index()
@@ -132,7 +116,6 @@ def run_project1():
 
     with col_chart2:
         st.subheader("⚠️ 이상치 유형별 분포 (위험도 순)")
-        # 콤마로 연결된 이상치 유형 분리
         all_types = filtered_anomalies['이상치_유형'].str.split(', ').explode()
         type_counts = all_types.value_counts().reset_index()
         type_counts.columns = ['유형', '건수']
@@ -141,37 +124,33 @@ def run_project1():
 
     st.divider()
 
-    # --- 7. 상세 데이터 뷰어 및 엑셀 다운로드 ---
     st.subheader("📋 이상 거래 상세 내역 (Risk Score 순)")
 
     def highlight_risk(val):
-        if val >= 5: return 'background-color: #ffcccc' # Red
-        elif val >= 3: return 'background-color: #fff2cc' # Yellow
+        if val >= 5: return 'background-color: #ffcccc' 
+        elif val >= 3: return 'background-color: #fff2cc' 
         return ''
 
-    styled_df = filtered_anomalies.style.applymap(highlight_risk, subset=['위험도'])
+    # [수정 완료] applymap -> map 
+    styled_df = filtered_anomalies.style.map(highlight_risk, subset=['위험도'])
     st.dataframe(styled_df, use_container_width=True)
 
     def to_excel(df):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df.to_excel(writer, index=False, sheet_name='이상치_리포트')
-        processed_data = output.getvalue()
-        return processed_data
-
-    excel_data = to_excel(filtered_anomalies)
+        return output.getvalue()
 
     st.download_button(
         label="📥 내부감사 엑셀 리포트 다운로드",
-        data=excel_data,
+        data=to_excel(filtered_anomalies),
         file_name='SIMPAC_내부감사_리포트.xlsx',
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    st.caption("※ 본 데이터는 SIMPAC 포트폴리오 제출용으로 생성된 가상 데이터입니다.")
 
 
 # ==============================================================================
-# [프로젝트 2] 제조원가 검증 및 결산 보조 대시보드 (수정 없이 함수로 래핑)
+# [프로젝트 2] 제조원가 검증 및 결산 보조 대시보드
 # ==============================================================================
 def run_project2():
     st.title("🏭 SIMPAC 다사업부(BU) 제조원가 검증 및 결산 대시보드")
@@ -180,11 +159,9 @@ def run_project2():
     각 사업부(프레스, 메탈, 산업기계 등)의 월별 제조원가 명세서를 분석하고, **표준원가 대비 실제원가 차이(Variance)를 검증**하여 월 결산(Closing)의 정확도와 속도를 높이는 자동화 대시보드입니다.
     """)
 
-    # --- 2. SIMPAC 맞춤형 원가 데이터 생성 (캐싱) ---
     @st.cache_data
     def generate_cost_data():
         np.random.seed(42)
-        
         bu_list = ['프레스 BU', '메탈(합금철) BU', '산업기계 BU', 'ENG BU']
         
         cost_structure = {
@@ -230,7 +207,6 @@ def run_project2():
 
     df = generate_cost_data()
 
-    # --- 3. 필터 (프로젝트 내장) ---
     st.markdown("### 🗓️ 결산월 및 BU 필터")
     col_f1, col_f2 = st.columns(2)
     with col_f1:
@@ -240,7 +216,6 @@ def run_project2():
 
     filtered_df = df[(df['결산월'] == selected_month) & (df['사업부'].isin(selected_bu))]
 
-    # --- 4. 결산 핵심 KPI 영역 ---
     total_standard = filtered_df['표준원가(백만원)'].sum()
     total_actual = filtered_df['실제원가(백만원)'].sum()
     total_variance = filtered_df['차이금액'].sum()
@@ -252,20 +227,18 @@ def run_project2():
     with col2:
         st.metric("총 표준원가", f"{total_standard:,.0f} 백만원")
     with col3:
-        st.metric("원가 차이(불리한 차이)", f"{total_variance:,.0f} 백만원", help="양수(+)는 실제원가가 더 발생한 불리한 차이(Unfavorable Variance)를 의미합니다.")
+        st.metric("원가 차이(불리한 차이)", f"{total_variance:,.0f} 백만원")
     with col4:
         error_cnt = len(filtered_df[filtered_df['차이율(%)'] >= 20])
-        st.metric("🚨 결산 검증 요망 건수", f"{error_cnt} 건", help="원가 차이율 20% 이상 계정")
+        st.metric("🚨 결산 검증 요망 건수", f"{error_cnt} 건")
 
     st.divider()
 
-    # --- 5. 탭(Tabs)을 활용한 다각도 분석 ---
     tab1, tab2, tab3 = st.tabs(["📊 사업부별 원가 분석", "🔍 원가요소별 비중 (명세서)", "⚠️ 결산 이상치 검증(원가차이)"])
 
     with tab1:
         st.subheader("사업부별 실제원가 vs 표준원가 비교")
         bu_grouped = filtered_df.groupby('사업부')[['표준원가(백만원)', '실제원가(백만원)']].sum().reset_index()
-        
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(x=bu_grouped['사업부'], y=bu_grouped['표준원가(백만원)'], name='표준원가', marker_color='#a6cee3'))
         fig1.add_trace(go.Bar(x=bu_grouped['사업부'], y=bu_grouped['실제원가(백만원)'], name='실제원가', marker_color='#1f78b4'))
@@ -286,21 +259,17 @@ def run_project2():
             st.plotly_chart(fig3, use_container_width=True)
 
     with tab3:
-        st.subheader("🚨 결산 전 필수 검증 대상 (원가 차이율 20% 이상 급등 계정)")
-        st.info("실제원가가 표준원가 대비 과도하게 발생한 계정입니다. 해당 사업부 담당자에게 전표 누락 및 수량 기입 오류 여부를 확인하여 결산수정분개를 진행해야 합니다.")
-        
+        st.subheader("🚨 결산 전 필수 검증 대상 (원가 차이율 20% 이상 계정)")
         anomalies_df = filtered_df[filtered_df['차이율(%)'] >= 20].sort_values(by='차이율(%)', ascending=False)
         
         def highlight_variance(val):
             color = '#ffcccc' if val >= 30 else '#fff2cc' if val >= 20 else ''
             return f'background-color: {color}'
         
-        st.dataframe(anomalies_df.style.applymap(highlight_variance, subset=['차이율(%)']), use_container_width=True)
+        # [수정 완료] applymap -> map 
+        st.dataframe(anomalies_df.style.map(highlight_variance, subset=['차이율(%)']), use_container_width=True)
 
     st.divider()
-
-    # --- 6. 결산 데이터 다운로드 ---
-    st.subheader("📥 결산 명세서 엑셀 다운로드")
 
     def convert_df_to_excel(df):
         output = io.BytesIO()
@@ -308,11 +277,9 @@ def run_project2():
             df.to_excel(writer, index=False, sheet_name='원가명세서')
         return output.getvalue()
 
-    excel_file = convert_df_to_excel(filtered_df)
-
     st.download_button(
-        label="월별 제조원가명세서 다운로드 (ERP 전송용)",
-        data=excel_file,
+        label="📥 월별 제조원가명세서 다운로드 (ERP 전송용)",
+        data=convert_df_to_excel(filtered_df),
         file_name=f"SIMPAC_제조원가결산_{selected_month}.xlsx",
         mime="application/vnd.ms-excel"
     )
@@ -320,7 +287,6 @@ def run_project2():
 # ==============================================================================
 # 메인 화면 구성 및 사이드바 내비게이션
 # ==============================================================================
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/SIMPAC_Logo.svg/1200px-SIMPAC_Logo.svg.png", width=150) # 로고 이미지 임시 (필요시 교체)
 st.sidebar.title("재무/회계 포트폴리오")
 st.sidebar.markdown("지원자: **[구민준]**")
 st.sidebar.divider()
@@ -334,8 +300,4 @@ selected_project = st.sidebar.radio(
 st.sidebar.divider()
 st.sidebar.info("본 대시보드는 SIMPAC의 비즈니스 구조를 모티브로 제작된 가상 데이터 기반 포트폴리오입니다.")
 
-# 선택된 프로젝트 렌더링
-if selected_project == "1. 내부통제 및 이상치 탐지 (증빙 대사)":
-    run_project1()
-elif selected_project == "2. 제조원가 검증 및 결산 보조":
-    run_project2()
+#
