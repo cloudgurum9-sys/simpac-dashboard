@@ -120,7 +120,6 @@ def run_project1():
 
     st.dataframe(filtered_anomalies.style.map(highlight_risk, subset=['위험도']), use_container_width=True)
 
-    # [수정포인트] 엔진을 openpyxl로 변경
     def to_excel(df):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -133,6 +132,7 @@ def run_project1():
         file_name='SIMPAC_내부감사_리포트.xlsx',
         mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
 
 # ==============================================================================
 # [프로젝트 2] 제조원가 검증 및 결산 보조 대시보드
@@ -171,13 +171,15 @@ def run_project2():
                         })
                         
         df = pd.DataFrame(data)
+        
+        # [수정포인트] 소수점이 발생할 수 있는 계산 결과를 int형으로 변환하여 안전하게 저장
+        outlier_idx = np.random.choice(df.index, 5, replace=False)
+        df.loc[outlier_idx, '실제원가(백만원)'] = (df.loc[outlier_idx, '표준원가(백만원)'] * 1.45).astype(int)
+        
+        # 차이금액 및 차이율 재계산
         df['차이금액'] = df['실제원가(백만원)'] - df['표준원가(백만원)']
         df['차이율(%)'] = round((df['차이금액'] / df['표준원가(백만원)']) * 100, 1)
         
-        outlier_idx = np.random.choice(df.index, 5, replace=False)
-        df.loc[outlier_idx, '실제원가(백만원)'] = df.loc[outlier_idx, '표준원가(백만원)'] * 1.45
-        df.loc[outlier_idx, '차이금액'] = df.loc[outlier_idx, '실제원가(백만원)'] - df.loc[outlier_idx, '표준원가(백만원)']
-        df.loc[outlier_idx, '차이율(%)'] = round((df.loc[outlier_idx, '차이금액'] / df.loc[outlier_idx, '표준원가(백만원)']) * 100, 1)
         return df
 
     df = generate_cost_data()
@@ -225,7 +227,6 @@ def run_project2():
 
     st.divider()
 
-    # [수정포인트] 엔진을 openpyxl로 변경
     def convert_df_to_excel(df):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
