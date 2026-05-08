@@ -322,7 +322,7 @@ def run_project2():
 # ==============================================================================
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/SIMPAC_Logo.svg/1200px-SIMPAC_Logo.svg.png", width=150) # 로고 이미지 임시 (필요시 교체)
 st.sidebar.title("재무/회계 포트폴리오")
-st.sidebar.markdown("지원자: **[본인 이름]**")
+st.sidebar.markdown("지원자: **[구민준]**")
 st.sidebar.divider()
 
 # 프로젝트 선택 라디오 버튼
@@ -332,7 +332,7 @@ selected_project = st.sidebar.radio(
 )
 
 st.sidebar.divider()
-st.sidebar.info("본 대시보드는 채용전환형 인턴 지원을 위해 SIMPAC의 비즈니스 구조를 모티브로 제작된 가상 데이터 기반 포트폴리오입니다.")
+st.sidebar.info("본 대시보드는 SIMPAC의 비즈니스 구조를 모티브로 제작된 가상 데이터 기반 포트폴리오입니다.")
 
 # 선택된 프로젝트 렌더링
 if selected_project == "1. 내부통제 및 이상치 탐지 (증빙 대사)":
